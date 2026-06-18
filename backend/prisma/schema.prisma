@@ -1,6 +1,6 @@
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -70,7 +70,7 @@ model Deposit {
   wallet        Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
   txHash        String            @unique
   amount        Float
-  status        String            @default("COMPLETED") // COMPLETED, FAILED
+  status        String            @default("COMPLETED")
   createdAt     DateTime          @default(now())
 }
 
@@ -81,7 +81,7 @@ model Withdrawal {
   toAddress     String
   amount        Float
   fee           Float
-  status        String            @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, REJECTED
+  status        String            @default("PENDING")
   txHash        String?           @unique
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
@@ -98,7 +98,7 @@ model Order {
   stopPrice     Float?
   amount        Float
   filledAmount  Float       @default(0.0)
-  status        String      @default("PENDING") // PENDING, PARTIALLY_FILLED, FILLED, CANCELLED, REJECTED
+  status        String      @default("PENDING")
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   tradesAsMaker Trade[]     @relation("MakerTrades")
@@ -131,7 +131,7 @@ model AuditLog {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  action    String   // e.g. LOGIN, WITHDRAW_REQUEST, TRADING_LIMIT_ORDER
+  action    String
   ipAddress String?
   details   String?
   createdAt DateTime @default(now())
