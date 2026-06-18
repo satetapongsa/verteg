@@ -17,7 +17,8 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const subscribersRef = useRef<Map<string, Set<(data: any) => void>>>(new Map());
 
   useEffect(() => {
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:5000';
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = import.meta.env.VITE_WS_URL || `${protocol}//${window.location.host}`;
     const finalUrl = token ? `${wsUrl}?token=${token}` : wsUrl;
 
     console.log('Connecting to WebSocket server:', wsUrl);

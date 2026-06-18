@@ -7,6 +7,7 @@ import { WebSocketServer } from 'ws';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
 import apiRouter from './routes/api';
 import { WebSocketManager } from './services/WebSocketManager';
 import { MatchingEngine } from './services/MatchingEngine';
@@ -15,11 +16,13 @@ const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || 5000;
 
-// Security settings
-app.use(helmet());
+// Security settings - Disable strict CSP to allow Vite bundled client resources
+app.use(helmet({
+  contentSecurityPolicy: false,
+}));
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173', // Vite default port
+    origin: process.env.CORS_ORIGIN || 'http://localhost:5173', // Support local Vite dev server
     credentials: true,
   })
 );
@@ -41,12 +44,24 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/*', authLimiter);
 
+// Serve frontend static files
+const frontendDistPath = path.join(__dirname, '../../frontend/dist');
+app.use(express.static(frontendDistPath));
+
 // Mount API routes
 app.use('/api', apiRouter);
 
 // Basic health check route
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date() });
+});
+
+// Fallback to frontend index.html for client-side routing (Single Page Application fallback)
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
+    return next();
+  }
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
 });
 
 // Global Error Handler

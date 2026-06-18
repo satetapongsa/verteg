@@ -3,6 +3,8 @@ node_modules/
 /dist
 /build
 /out
+/backend/dist
+/frontend/dist
 
 # Environment variables (contains raw keys & secrets)
 .env
