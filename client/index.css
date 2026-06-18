@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-background text-white antialiased font-sans select-none overflow-x-hidden;
+    @apply bg-background text-white antialiased font-sans overflow-x-hidden;
   }
 
   /* Custom Scrollbar for professional trading look */

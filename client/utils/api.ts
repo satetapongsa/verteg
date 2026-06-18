@@ -46,7 +46,7 @@ const mockApi = {
             locked: w.locked,
           };
         });
-        return mockResponse(data);
+        return mockResponse({ wallets: data });
       }
 
       // 2. Wallet History (Deposits & Withdrawals)
@@ -92,7 +92,7 @@ const mockApi = {
         const combined = [...deposits, ...withdrawals].sort(
           (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
-        return mockResponse(combined);
+        return mockResponse({ history: combined });
       }
 
       // 3. Market Ticker
@@ -128,7 +128,7 @@ const mockApi = {
             side: Math.random() > 0.5 ? 'BUY' : 'SELL', // mock side
             createdAt: t.createdAt,
           }));
-        return mockResponse(trades);
+        return mockResponse({ trades: trades });
       }
 
       // 6. Market Overview (all tickers)
@@ -139,14 +139,28 @@ const mockApi = {
         ];
         const data = symbols.map((symbol) => {
           const currentPrice = matchingEngine.getMarketPrice(symbol);
+          const nameMap: Record<string, string> = {
+            'BTC/USDT': 'Bitcoin',
+            'ETH/USDT': 'Ethereum',
+            'BNB/USDT': 'Binance Coin',
+            'SOL/USDT': 'Solana',
+            'XRP/USDT': 'Ripple',
+            'DOGE/USDT': 'Dogecoin',
+            'ADA/USDT': 'Cardano',
+            'TRX/USDT': 'TRON',
+            'MATIC/USDT': 'Polygon',
+          };
           return {
             symbol,
+            name: nameMap[symbol] || symbol.split('/')[0],
             lastPrice: currentPrice,
+            high: Number((currentPrice * 1.05).toFixed(2)),
+            low: Number((currentPrice * 0.95).toFixed(2)),
+            volume: Number((Math.random() * 500000 + 10000).toFixed(2)),
             priceChangePercent: Number(((Math.random() - 0.4) * 4).toFixed(2)),
-            volume24h: Number((Math.random() * 1000000 + 5000).toFixed(2)),
           };
         });
-        return mockResponse(data);
+        return mockResponse({ markets: data });
       }
 
       // 7. Open Orders
@@ -154,7 +168,7 @@ const mockApi = {
         const open = db.getOrders().filter(
           (o) => o.userId === userId && (o.status === 'PENDING' || o.status === 'PARTIALLY_FILLED')
         );
-        return mockResponse(open);
+        return mockResponse({ orders: open });
       }
 
       // 8. User Executed Trades
@@ -162,7 +176,7 @@ const mockApi = {
         const trades = db.getTrades().filter(
           (t) => t.makerId.startsWith(userId) || t.takerId.startsWith(userId)
         );
-        return mockResponse(trades);
+        return mockResponse({ trades: trades });
       }
 
       // 9. Auth 2FA Setup
@@ -176,7 +190,7 @@ const mockApi = {
         }
         return mockResponse({
           secret,
-          qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&color=0a0e17&data=otpauth://totp/CryptoExchange:${encodeURIComponent(users[userIdx].email)}?secret=${secret}&issuer=CryptoExchange`,
+          qrCode: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&color=0a0e17&data=otpauth://totp/CryptoExchange:${encodeURIComponent(users[userIdx].email)}?secret=${secret}&issuer=CryptoExchange`,
         });
       }
 
@@ -200,7 +214,7 @@ const mockApi = {
             } : null,
           };
         });
-        return mockResponse(data);
+        return mockResponse({ users: data });
       }
 
       // 11. Admin Withdrawals List
@@ -232,7 +246,7 @@ const mockApi = {
             }
           };
         });
-        return mockResponse(data);
+        return mockResponse({ withdrawals: data });
       }
 
       // 12. Admin Dashboard Stats
@@ -245,11 +259,13 @@ const mockApi = {
         const pendingWithdrawalsCount = withdrawals.filter((w) => w.status === 'PENDING').length;
 
         return mockResponse({
-          totalUsers: usersCount,
-          totalOrders: ordersCount,
-          totalTrades: trades.length,
-          totalVolume: volume,
-          pendingWithdrawals: pendingWithdrawalsCount,
+          stats: {
+            totalUsers: usersCount,
+            totalOrders: ordersCount,
+            totalTrades: trades.length,
+            totalVolume: volume,
+            pendingWithdrawals: pendingWithdrawalsCount,
+          }
         });
       }
 
@@ -422,7 +438,7 @@ const mockApi = {
         // Run matching engine loop immediately
         matchingEngine.processNewOrder(newOrder.id);
 
-        return mockResponse(newOrder);
+        return mockResponse({ message: 'Order placed successfully', order: newOrder });
       }
 
       // 5. Admin Approve/Reject KYC

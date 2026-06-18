@@ -25,7 +25,7 @@ export const CoinIcon: React.FC<CoinIconProps> = ({ symbol, size = 24, className
   };
 
   const colorClass = fallbackColors[cleanSymbol] || 'bg-gray-700 text-white';
-  const iconUrl = `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/${cleanSymbol.toLowerCase()}.png`;
+  const iconUrl = `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/${cleanSymbol.toLowerCase()}.png`;
 
   if (error) {
     return (
