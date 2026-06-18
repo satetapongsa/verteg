@@ -23,10 +23,9 @@ const mockApi = {
   get: async (url: string, config?: any): Promise<any> => {
     console.log(`[Mock API GET] -> ${url}`);
     try {
-      const userId = getUserIdFromSession();
-
       // 1. Wallet Balances
       if (url.startsWith('/wallet/balances')) {
+        const userId = getUserIdFromSession();
         const wallets = db.getWallets().filter((w) => w.userId === userId);
         const assets = db.getAssets();
         const data = wallets.map((w) => {
@@ -51,6 +50,7 @@ const mockApi = {
 
       // 2. Wallet History (Deposits & Withdrawals)
       if (url.startsWith('/wallet/history')) {
+        const userId = getUserIdFromSession();
         const wallets = db.getWallets().filter((w) => w.userId === userId);
         const walletIds = wallets.map((w) => w.id);
         const assets = db.getAssets();
@@ -165,6 +165,7 @@ const mockApi = {
 
       // 7. Open Orders
       if (url.startsWith('/trade/open-orders')) {
+        const userId = getUserIdFromSession();
         const open = db.getOrders().filter(
           (o) => o.userId === userId && (o.status === 'PENDING' || o.status === 'PARTIALLY_FILLED')
         );
@@ -173,6 +174,7 @@ const mockApi = {
 
       // 8. User Executed Trades
       if (url.startsWith('/trade/trades')) {
+        const userId = getUserIdFromSession();
         const trades = db.getTrades().filter(
           (t) => t.makerId.startsWith(userId) || t.takerId.startsWith(userId)
         );
@@ -181,6 +183,7 @@ const mockApi = {
 
       // 9. Auth 2FA Setup
       if (url.startsWith('/auth/2fa/setup')) {
+        const userId = getUserIdFromSession();
         const users = db.getUsers();
         const userIdx = users.findIndex((u) => u.id === userId);
         const secret = Math.random().toString(36).substring(2, 18).toUpperCase();
@@ -196,6 +199,7 @@ const mockApi = {
 
       // 10. Admin Users List
       if (url.startsWith('/admin/users')) {
+        const userId = getUserIdFromSession();
         const users = db.getUsers();
         const kycList = db.getKyc();
         const data = users.map((u) => {
@@ -219,6 +223,7 @@ const mockApi = {
 
       // 11. Admin Withdrawals List
       if (url.startsWith('/admin/withdrawals')) {
+        const userId = getUserIdFromSession();
         const withdrawals = db.getWithdrawals();
         const users = db.getUsers();
         const wallets = db.getWallets();
@@ -251,6 +256,7 @@ const mockApi = {
 
       // 12. Admin Dashboard Stats
       if (url.startsWith('/admin/stats')) {
+        const userId = getUserIdFromSession();
         const usersCount = db.getUsers().length;
         const ordersCount = db.getOrders().length;
         const trades = db.getTrades();
