@@ -1,196 +1,102 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
-import { matchingEngine } from '../utils/matchingEngine';
 
 interface WebSocketContextType {
-  socket: any | null; // Mock websocket object
+  socket: WebSocket | null;
   subscribe: (channel: string, callback: (data: any) => void) => () => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
 
 export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { token } = useAuth();
+  const socketRef = useRef<WebSocket | null>(null);
+  const [connected, setConnected] = useState(false);
+  
+  // Track subscribers by channel
   const subscribersRef = useRef<Map<string, Set<(data: any) => void>>>(new Map());
-  const [tickerPrices, setTickerPrices] = useState<Record<string, number>>({
-    'BTC/USDT': 65000,
-    'ETH/USDT': 3500,
-    'BNB/USDT': 600,
-    'SOL/USDT': 150,
-    'XRP/USDT': 0.5,
-    'DOGE/USDT': 0.12,
-    'ADA/USDT': 0.45,
-    'TRX/USDT': 0.11,
-    'MATIC/USDT': 0.7,
-  });
-
-  // Load starting market prices from engine
-  useEffect(() => {
-    const prices: Record<string, number> = { ...tickerPrices };
-    Object.keys(prices).forEach((symbol) => {
-      prices[symbol] = matchingEngine.getMarketPrice(symbol);
-    });
-    setTickerPrices(prices);
-  }, []);
-
-  // Helper to trigger callback updates for subscribers of a specific channel
-  const triggerChannel = (channel: string, payload: any) => {
-    const callbacks = subscribersRef.current.get(channel);
-    if (callbacks) {
-      callbacks.forEach((cb) => cb(payload));
-    }
-  };
 
   useEffect(() => {
-    // 1. Setup simulated trading bots interval (updates prices, order books, and trades)
-    const interval = setInterval(() => {
-      const symbols = Object.keys(tickerPrices);
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = import.meta.env.VITE_WS_URL || `${protocol}//${window.location.host}`;
+    const finalUrl = token ? `${wsUrl}?token=${token}` : wsUrl;
+
+    console.log('Connecting to WebSocket server:', wsUrl);
+    const ws = new WebSocket(finalUrl);
+    socketRef.current = ws;
+
+    ws.onopen = () => {
+      console.log('WebSocket Connection Established');
+      setConnected(true);
       
-      symbols.forEach((symbol) => {
-        // Random price fluctuation (±0.08%)
-        const currentPrice = tickerPrices[symbol] || matchingEngine.getMarketPrice(symbol);
-        const changePercent = (Math.random() - 0.5) * 0.0016;
-        const newPrice = Number((currentPrice * (1 + changePercent)).toFixed(symbol.includes('USDT') && currentPrice < 10 ? 4 : 2));
-        
-        tickerPrices[symbol] = newPrice;
-        
-        // Broadcast ticker update
-        triggerChannel(`market:${symbol}:ticker`, {
-          event: 'ticker_update',
-          symbol,
-          price: newPrice,
-          timestamp: new Date().toISOString(),
-        });
+      // Resubscribe to existing channels if reconnected
+      subscribersRef.current.forEach((_, channel) => {
+        ws.send(JSON.stringify({ action: 'subscribe', channel }));
+      });
+    };
 
-        // Broadcast mock trades (50% chance each tick)
-        if (Math.random() > 0.5) {
-          const mockTradeAmount = Number((Math.random() * (symbol === 'BTC' ? 0.2 : 2.5)).toFixed(4));
-          triggerChannel(`market:${symbol}:trades`, {
-            event: 'trades_update',
-            symbol,
-            data: [
-              {
-                price: newPrice,
-                amount: mockTradeAmount,
-                createdAt: new Date().toISOString(),
-              }
-            ]
+    ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        
+        // Find which channel this message corresponds to
+        let targetChannel = '';
+        if (payload.event === 'orderbook_update') {
+          targetChannel = `market:${payload.symbol}:orderbook`;
+        } else if (payload.event === 'trades_update') {
+          targetChannel = `market:${payload.symbol}:trades`;
+        } else if (payload.event === 'ticker_update') {
+          targetChannel = `market:${payload.symbol}:ticker`;
+        } else if (payload.event === 'portfolio_update') {
+          targetChannel = `user:updates`; // custom internal channel representation for portfolio
+        }
+
+        if (targetChannel) {
+          const callbacks = subscribersRef.current.get(targetChannel);
+          if (callbacks) {
+            callbacks.forEach((cb) => cb(payload));
+          }
+        } else {
+          // Special fallback checking
+          subscribersRef.current.forEach((callbacks, channel) => {
+            if (payload.channel === channel) {
+              callbacks.forEach((cb) => cb(payload.data || payload));
+            }
           });
         }
-
-        // Broadcast order book depth (derived dynamically around the current price)
-        const bookData = matchingEngine.getOrderBook(symbol);
-        
-        // Generate mock bids and asks spreads if order book is thin to keep UI looking premium
-        const mockBids = [...bookData.bids];
-        const mockAsks = [...bookData.asks];
-
-        for (let i = 1; i <= 10; i++) {
-          const bidPrice = Number((newPrice * (1 - i * 0.0005)).toFixed(2));
-          const askPrice = Number((newPrice * (1 + i * 0.0005)).toFixed(2));
-          const mockAmount = Number((Math.random() * 5 + 0.1).toFixed(3));
-
-          if (!mockBids.some((b) => Math.abs(b.price - bidPrice) < 0.01)) {
-            mockBids.push({ price: bidPrice, amount: mockAmount });
-          }
-          if (!mockAsks.some((a) => Math.abs(a.price - askPrice) < 0.01)) {
-            mockAsks.push({ price: askPrice, amount: mockAmount });
-          }
-        }
-
-        // Sort bids descending, asks ascending
-        mockBids.sort((a, b) => b.price - a.price);
-        mockAsks.sort((a, b) => a.price - b.price);
-
-        triggerChannel(`market:${symbol}:orderbook`, {
-          event: 'orderbook_update',
-          symbol,
-          data: {
-            bids: mockBids.slice(0, 15),
-            asks: mockAsks.slice(0, 15),
-          }
-        });
-      });
-
-      setTickerPrices({ ...tickerPrices });
-    }, 2500);
-
-    // 2. Setup event interceptors to connect real user operations (matchingEngine triggers) to WebSocket channels
-    const handleOrderbookUpdate = (e: any) => {
-      const { symbol } = e.detail;
-      const bookData = matchingEngine.getOrderBook(symbol);
-      triggerChannel(`market:${symbol}:orderbook`, {
-        event: 'orderbook_update',
-        symbol,
-        data: bookData,
-      });
+      } catch (err) {
+        console.error('Error handling WS message:', err);
+      }
     };
 
-    const handleTradesUpdate = (e: any) => {
-      const { symbol, trades } = e.detail;
-      triggerChannel(`market:${symbol}:trades`, {
-        event: 'trades_update',
-        symbol,
-        data: trades.map((t: any) => ({
-          price: t.price,
-          amount: t.amount,
-          createdAt: t.createdAt,
-        })),
-      });
+    ws.onclose = () => {
+      console.log('WebSocket Connection Closed. Reconnecting in 3 seconds...');
+      setConnected(false);
+      socketRef.current = null;
     };
 
-    const handleTickerUpdate = (e: any) => {
-      const { symbol, price } = e.detail;
-      tickerPrices[symbol] = price;
-      setTickerPrices({ ...tickerPrices });
-      
-      triggerChannel(`market:${symbol}:ticker`, {
-        event: 'ticker_update',
-        symbol,
-        price,
-        timestamp: new Date().toISOString(),
-      });
+    ws.onerror = (err) => {
+      console.error('WebSocket client error:', err);
     };
-
-    const handlePortfolioUpdate = () => {
-      triggerChannel('user:updates', {
-        event: 'portfolio_update',
-        timestamp: new Date().toISOString(),
-      });
-    };
-
-    window.addEventListener('orderbook_updated', handleOrderbookUpdate);
-    window.addEventListener('trades_updated', handleTradesUpdate);
-    window.addEventListener('ticker_updated', handleTickerUpdate);
-    window.addEventListener('portfolio_updated', handlePortfolioUpdate);
 
     return () => {
-      clearInterval(interval);
-      window.removeEventListener('orderbook_updated', handleOrderbookUpdate);
-      window.removeEventListener('trades_updated', handleTradesUpdate);
-      window.removeEventListener('ticker_updated', handleTickerUpdate);
-      window.removeEventListener('portfolio_updated', handlePortfolioUpdate);
+      ws.close();
+      socketRef.current = null;
     };
-  }, [tickerPrices]);
+  }, [token]);
 
   // Subscribe function that returns an unsubscribe cleanup function
   const subscribe = (channel: string, callback: (data: any) => void) => {
     if (!subscribersRef.current.has(channel)) {
       subscribersRef.current.set(channel, new Set());
+      
+      // Send subscription packet to backend if socket is open
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.send(JSON.stringify({ action: 'subscribe', channel }));
+      }
     }
 
     subscribersRef.current.get(channel)!.add(callback);
-
-    // Immediately trigger initial update if it's an orderbook channel
-    if (channel.includes(':orderbook')) {
-      const symbol = channel.split(':')[1];
-      const bookData = matchingEngine.getOrderBook(symbol);
-      callback({
-        event: 'orderbook_update',
-        symbol,
-        data: bookData,
-      });
-    }
 
     // Return cleanup unsubscribe function
     return () => {
@@ -199,20 +105,16 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         callbacks.delete(callback);
         if (callbacks.size === 0) {
           subscribersRef.current.delete(channel);
+          if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+            socketRef.current.send(JSON.stringify({ action: 'unsubscribe', channel }));
+          }
         }
       }
     };
   };
 
-  // Mock socket is always "online"
-  const mockSocket = {
-    readyState: 1, // OPEN
-    send: (msg: string) => console.log('Mock WS Sent:', msg),
-    close: () => {},
-  };
-
   return (
-    <WebSocketContext.Provider value={{ socket: mockSocket, subscribe }}>
+    <WebSocketContext.Provider value={{ socket: socketRef.current, subscribe }}>
       {children}
     </WebSocketContext.Provider>
   );
