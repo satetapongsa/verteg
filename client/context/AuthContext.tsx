@@ -14,6 +14,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string, code?: string) => Promise<{ twoFactorRequired?: boolean; message?: string }>;
   registerUser: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -189,6 +190,81 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(mockToken);
   };
 
+  const loginWithGoogle = async (email: string) => {
+    const users = db.getUsers();
+    let targetUser = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+
+    if (targetUser) {
+      if (targetUser.isFrozen) {
+        throw new Error('This account has been frozen by administration');
+      }
+    } else {
+      // Create new user for this Google account
+      targetUser = {
+        id: `u-${Math.random().toString(36).substring(2, 12)}`,
+        email: email.toLowerCase(),
+        passwordHash: 'google-oauth',
+        role: 'USER',
+        is2faEnabled: false,
+        isFrozen: false,
+        createdAt: new Date().toISOString(),
+      };
+
+      users.push(targetUser);
+      db.saveUsers(users);
+
+      // Seed empty kyc entry
+      const kycList = db.getKyc();
+      kycList.push({
+        id: `k-${Math.random().toString(36).substring(2, 12)}`,
+        userId: targetUser.id,
+        firstName: '',
+        lastName: '',
+        documentId: '',
+        status: 'PENDING',
+        createdAt: new Date().toISOString(),
+      });
+      db.saveKyc(kycList);
+
+      // Create wallets with seeded trading funds
+      const wallets = db.getWallets();
+      const assets = db.getAssets();
+      assets.forEach((asset) => {
+        let initialBalance = 0;
+        if (asset.symbol === 'USDT') initialBalance = 10000.0;
+        else if (asset.symbol === 'BTC') initialBalance = 0.5;
+        else if (asset.symbol === 'ETH') initialBalance = 5.0;
+        else initialBalance = 100.0;
+
+        wallets.push({
+          id: `w-${targetUser!.id}-${asset.symbol}`,
+          userId: targetUser!.id,
+          assetId: asset.id,
+          address: `0x${targetUser!.id.substring(0, 4)}${asset.symbol.toLowerCase()}${Math.random().toString(36).substring(2, 12)}`,
+          balance: initialBalance,
+          locked: 0,
+        });
+      });
+      db.saveWallets(wallets);
+    }
+
+    const userData: User = {
+      id: targetUser.id,
+      email: targetUser.email,
+      role: targetUser.role,
+      is2faEnabled: targetUser.is2faEnabled,
+    };
+
+    const mockToken = `google-token-${Math.random().toString(36).substring(2, 15)}`;
+    localStorage.setItem('accessToken', mockToken);
+    localStorage.setItem('user', JSON.stringify(userData));
+
+    db.logAudit(targetUser.id, 'USER_GOOGLE_LOGIN', `User logged in using Google account verification`);
+
+    setUser(userData);
+    setToken(mockToken);
+  };
+
   const logout = async () => {
     if (user) {
       db.logAudit(user.id, 'USER_LOGOUT', `User logged out`);
@@ -200,7 +276,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, registerUser, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, registerUser, loginWithGoogle, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
