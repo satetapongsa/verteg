@@ -1,7 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Mail, Lock, KeyRound, AlertTriangle } from 'lucide-react';
+import { GOOGLE_CLIENT_ID } from '../config';
+
+declare global {
+  interface Window {
+    google: any;
+  }
+}
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -20,6 +27,71 @@ export const LoginPage: React.FC = () => {
   const [googleError, setGoogleError] = useState<string | null>(null);
 
   const { login, loginWithGoogle } = useAuth();
+
+  const handleCredentialResponse = async (response: any) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = response.credential;
+      if (!token) throw new Error('No credential returned from Google');
+      
+      // Decode JWT token natively
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        window.atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const decoded = JSON.parse(jsonPayload);
+      const email = decoded.email;
+      if (!email) throw new Error('No email found in Google token');
+
+      // Login using the email from Google Auth
+      await loginWithGoogle(email);
+      navigate('/dashboard');
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Google Sign-In failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const initGoogle = () => {
+      if (window.google) {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleCredentialResponse,
+        });
+        
+        const btnElement = document.getElementById("google-signin-btn-container");
+        if (btnElement) {
+          window.google.accounts.id.renderButton(btnElement, {
+            theme: "filled_dark",
+            size: "large",
+            width: btnElement.clientWidth || 380,
+            shape: "pill",
+          });
+        }
+      }
+    };
+
+    // Initialize immediately
+    initGoogle();
+    
+    // Fallback polling for async script loading
+    const timer = setInterval(() => {
+      if (window.google) {
+        initGoogle();
+        clearInterval(timer);
+      }
+    }, 500);
+
+    return () => clearInterval(timer);
+  }, [showGoogleModal, is2faRequired]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +121,6 @@ export const LoginPage: React.FC = () => {
     setGoogleLoading(true);
 
     try {
-      // Simulate Google OAuth handshake delay
       await new Promise((resolve) => setTimeout(resolve, 1500));
       await loginWithGoogle(gmail);
       setShowGoogleModal(false);
@@ -160,31 +231,21 @@ export const LoginPage: React.FC = () => {
               <div className="flex-grow border-t border-darkGray"></div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowGoogleModal(true)}
-              className="w-full bg-[#111622] hover:bg-[#1C2436] text-white border border-darkGray hover:border-textMuted font-bold py-3 rounded-lg flex items-center justify-center space-x-3 transition-all transform hover:-translate-y-0.5 shadow-md"
-            >
-              <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" width="100%" height="100%">
-                <path
-                  fill="#4285F4"
-                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.69c-.29 1.5-.1.14-.14 3.08l2.92 2.26c1.7-1.57 2.27-3.9 2.27-7.19z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96L1.29 17.3c2.06 4.09 6.25 6.7 10.71 6.7z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29L1.29 6.7C.47 8.35 0 10.12 0 12s.47 3.65 1.29 5.3l3.98-3.01z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.54 0 3.35 2.61 1.29 6.7l3.98 3.01c.95-2.85 3.6-4.96 6.73-4.96z"
-                />
-              </svg>
-              <span>Sign in with Google</span>
-            </button>
+            <div className="space-y-3">
+              {/* Google Native SDK Button Container */}
+              <div className="w-full flex justify-center">
+                <div id="google-signin-btn-container" className="w-full min-h-[44px]"></div>
+              </div>
+
+              {/* Simulation fallback link */}
+              <button
+                type="button"
+                onClick={() => setShowGoogleModal(true)}
+                className="w-full bg-[#111622] hover:bg-[#1C2436] text-textMuted hover:text-white border border-darkGray hover:border-textMuted font-bold py-2.5 rounded-lg flex items-center justify-center space-x-3 transition-all text-xs"
+              >
+                <span>Google Simulated Login Modal</span>
+              </button>
+            </div>
           </>
         )}
 
