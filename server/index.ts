@@ -45,7 +45,7 @@ const authLimiter = rateLimit({
 app.use('/api/auth/*', authLimiter);
 
 // Serve frontend static files
-const frontendDistPath = path.join(__dirname, '../../frontend/dist');
+const frontendDistPath = path.join(__dirname, '../dist');
 app.use(express.static(frontendDistPath));
 
 // Mount API routes

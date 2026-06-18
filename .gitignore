@@ -1,10 +1,9 @@
 # Dependencies
 node_modules/
 /dist
+/dist-server
 /build
 /out
-/backend/dist
-/frontend/dist
 
 # Environment variables (contains raw keys & secrets)
 .env
@@ -16,8 +15,6 @@ node_modules/
 # Databases & local stores
 *.db
 *.db-journal
-/backend/prisma/dev.db
-/backend/prisma/dev.db-journal
 
 # Logs & temp assets
 npm-debug.log*
