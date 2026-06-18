@@ -1,0 +1,52 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+@layer base {
+  body {
+    @apply bg-background text-white antialiased font-sans select-none overflow-x-hidden;
+  }
+
+  /* Custom Scrollbar for professional trading look */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-darkGray rounded-full hover:bg-gray-700;
+  }
+}
+
+.tradingview-container {
+  height: 100%;
+  width: 100%;
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Keyframes for subtle animations */
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.animate-pulse-green {
+  animation: pulse-green 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-pulse-red {
+  animation: pulse-red 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
