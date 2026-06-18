@@ -5,7 +5,7 @@
   "main": "dist-server/index.js",
   "scripts": {
     "dev": "tsnd --respawn --transpile-only server/index.ts",
-    "build:frontend": "vite build",
+    "build:frontend": "tsc -p tsconfig.client.json && vite build",
     "build:backend": "tsc",
     "build": "npm run build:frontend && npm run build:backend",
     "start": "node dist-server/index.js",
