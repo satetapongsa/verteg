@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: exchange-db
+    restart: always
+    environment:
+      POSTGRES_USER: exchange_user
+      POSTGRES_PASSWORD: exchange_password
+      POSTGRES_DB: exchange_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: exchange-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://exchange_user:exchange_password@db:5432/exchange_db?schema=public
+      - JWT_SECRET=supersecuretokenvalueforyou
+      - ENCRYPTION_KEY=mycryptosecretkeyforexchangekeys2026
+      - PORT=5000
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: exchange-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Scrollbars for Financial Panels */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0A0E17;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1F2937;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2563EB;
+}
+
+/* Premium micro-animations & transitions */
+.transition-glow {
+  transition: all 0.3s ease;
+}
+
+.transition-glow:hover {
+  box-shadow: 0 0 15px rgba(37, 99, 235, 0.4);
+  border-color: #2563EB;
+}

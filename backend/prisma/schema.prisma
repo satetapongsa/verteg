@@ -1,0 +1,201 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderType {
+  LIMIT
+  MARKET
+  STOP
+}
+
+enum OrderStatus {
+  PENDING
+  PARTIALLY_FILLED
+  FILLED
+  CANCELLED
+  REJECTED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REJECTED
+}
+
+enum KycStatus {
+  UNSUBMITTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id                String       @id @default(uuid())
+  email             String       @unique
+  passwordHash      String
+  role              Role         @default(USER)
+  isEmailVerified   Boolean      @default(false)
+  twoFactorEnabled  Boolean      @default(false)
+  twoFactorSecret   String?
+  isFrozen          Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  wallets           Wallet[]
+  orders            Order[]
+  kyc               KycDetails?
+  sessions          Session[]
+  apiKeys           ApiKey[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+}
+
+model Wallet {
+  id           String        @id @default(uuid())
+  userId       String
+  coinSymbol   String        // BTC, ETH, USDT, etc.
+  balance      Decimal       @default(0) @db.Decimal(28, 8)
+  locked       Decimal       @default(0) @db.Decimal(28, 8) // Escrow for open orders/withdrawals
+  address      String        @unique
+  privateKey   String        // Encrypted address private key/seed
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([userId, coinSymbol])
+}
+
+model Order {
+  id           String      @id @default(uuid())
+  userId       String
+  pair         String      // BTC_USDT, ETH_USDT, etc.
+  side         OrderSide
+  type         OrderType
+  price        Decimal?    @db.Decimal(28, 8)
+  stopPrice    Decimal?    @db.Decimal(28, 8)
+  quantity     Decimal     @db.Decimal(28, 8)
+  filledQty    Decimal     @default(0) @db.Decimal(28, 8)
+  status       OrderStatus @default(PENDING)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tradesAsMaker Trade[]     @relation("MakerTrades")
+  tradesAsTaker Trade[]     @relation("TakerTrades")
+}
+
+model Trade {
+  id          String   @id @default(uuid())
+  pair        String   // BTC_USDT
+  price       Decimal  @db.Decimal(28, 8)
+  quantity    Decimal  @db.Decimal(28, 8)
+  makerOrderId String
+  takerOrderId String
+  side        OrderSide // Taker side
+  createdAt   DateTime @default(now())
+
+  makerOrder  Order    @relation("MakerTrades", fields: [makerOrderId], references: [id])
+  takerOrder  Order    @relation("TakerTrades", fields: [takerOrderId], references: [id])
+}
+
+model Transaction {
+  id            String            @id @default(uuid())
+  walletId      String
+  type          TransactionType
+  amount        Decimal           @db.Decimal(28, 8)
+  fee           Decimal           @default(0) @db.Decimal(28, 8)
+  network       String            // BTC, ERC20, BSC, SOL, TRC20
+  address       String            // Destination/Origin address
+  txHash        String?           @unique
+  status        TransactionStatus @default(PENDING)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  wallet        Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
+}
+
+model KycDetails {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime
+  idType      String    // Passport, Driver's License
+  idNumber    String
+  status      KycStatus @default(PENDING)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  ipAddress String
+  userAgent String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id        String   @id @default(uuid())
+  userId    String
+  key       String   @unique
+  secret    String   // Encrypted secret key
+  name      String
+  permissions String // Comma-separated: read,trade,withdraw
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String   // e.g. LOGIN, WITHDRAWAL_REQUEST, ORDER_PLACED
+  ipAddress String
+  details   String?  // JSON stringified details
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
