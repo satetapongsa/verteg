@@ -97,8 +97,58 @@ export const LandingPage: React.FC = () => {
     };
 
     fetchTickers();
-    const interval = setInterval(fetchTickers, 10000);
-    return () => clearInterval(interval);
+
+    // Live Binance WebSocket Connection
+    const ws = new WebSocket('wss://stream.binance.com:9443/ws');
+    
+    ws.onopen = () => {
+      const subscribeMsg = {
+        method: 'SUBSCRIBE',
+        params: [
+          'btcusdt@ticker',
+          'ethusdt@ticker',
+          'bnbusdt@ticker',
+          'solusdt@ticker',
+          'xrpusdt@ticker',
+          'dogeusdt@ticker',
+          'adausdt@ticker',
+          'trxusdt@ticker',
+          'maticusdt@ticker'
+        ],
+        id: 1
+      };
+      ws.send(JSON.stringify(subscribeMsg));
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.e === '24hrTicker') {
+          const coin = data.s.replace('USDT', '');
+          setTickers(prev => prev.map(t => {
+            if (t.symbol === coin) {
+              return {
+                ...t,
+                price: parseFloat(data.c),
+                change24h: parseFloat(data.P),
+                high24h: parseFloat(data.h),
+                low24h: parseFloat(data.l),
+                volume24h: parseFloat(data.v)
+              };
+            }
+            return t;
+          }));
+        }
+      } catch (err) {
+        console.error('Error parsing Binance WS message', err);
+      }
+    };
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
   }, []);
 
   const handleTradeClick = (pair: string) => {
